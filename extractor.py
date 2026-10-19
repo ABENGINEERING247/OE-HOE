@@ -5,20 +5,21 @@ from openai import OpenAI
 
 def get_openai_client():
   """Initialize OpenAI client using Streamlit secrets."""
-  if "OPENAI_API_KEY" in st.secrets:
-    return OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-  elif "api_keys" in st.secrets and "openai" in st.secrets["api_keys"]:
-    return OpenAI(api_key=st.secrets["api_keys"]["openai"])
-  else:
-    st.error("API Key missing! Please set OPENAI_API_KEY in secrets.toml.")
-    return None
+  try:
+    if "OPENAI_API_KEY" in st.secrets:
+      return OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    elif "api_keys" in st.secrets and "openai" in st.secrets["api_keys"]:
+      return OpenAI(api_key=st.secrets["api_keys"]["openai"])
+  except Exception:
+    pass
+  return None
 
 
 def extract_structured_data(user_text: str) -> dict:
   """Calls API strictly for structured entity/data extraction using gpt-6-luna at temp 1.0."""
   client = get_openai_client()
   if not client:
-    return {"error": "API Key configuration missing."}
+    return {"error": "API Key configuration missing or invalid in secrets.toml."}
 
   prompt = f"""
     Extract structured entity information from the following text.
