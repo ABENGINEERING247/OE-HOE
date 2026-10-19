@@ -28,7 +28,6 @@ def extract_structured_data(user_text: str) -> dict:
     """
 
   try:
-    # Fetching gpt-6-luna and temperature 1.0 from secrets or hardcoding fallback
     settings = st.secrets.get("extraction_settings", {})
     model_name = settings.get("model", "gpt-6-luna")
     temp = float(settings.get("temperature", 1.0))
