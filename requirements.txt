@@ -1,0 +1,6 @@
+streamlit>=1.30.0
+spacy>=3.7.0
+openai>=1.10.0
+gTTS>=2.5.0
+SpeechRecognition>=3.10.0
+pydub>=0.25.1
