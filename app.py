@@ -1,6 +1,7 @@
 import io
 from gtts import gTTS
 import spacy
+import spacy.cli
 import speech_recognition as sr
 import streamlit as st
 
@@ -8,16 +9,25 @@ from extractor import extract_structured_data
 
 # Page Setup
 st.set_page_config(
-    page_title="OE HOE - Offline Voice & NLP Assistant",
+    page_title="OE HOE - Offline Voice & Local NLP Assistant",
     page_icon="🤖",
     layout="wide",
 )
 
 
-# Load local spaCy NLP model once
+# Robust spaCy loader with automatic fallback installation to prevent E050 errors
 @st.cache_resource
 def load_nlp_model():
-  return spacy.load("en_core_web_sm")
+  try:
+    return spacy.load("en_core_web_sm")
+  except OSError:
+    st.info("Downloading spaCy language model ('en_core_web_sm') for the first time...")
+    try:
+      spacy.cli.download("en_core_web_sm")
+      return spacy.load("en_core_web_sm")
+    except Exception as e:
+      st.error(f"Failed to auto-download spaCy model: {e}")
+      raise e
 
 
 nlp = load_nlp_model()
@@ -31,6 +41,8 @@ if "extracted_records" not in st.session_state:
 
 def local_intent_analyzer(text: str):
   """Analyzes intent locally using spaCy tokenization and lemmatization."""
+  if not text:
+    return "GENERAL_CHAT"
   doc = nlp(text.lower())
   lemmas = [token.lemma_ for token in doc]
 
@@ -46,11 +58,14 @@ def local_intent_analyzer(text: str):
 
 def text_to_speech(text: str):
   """Converts text response to audio stream using gTTS."""
-  tts = gTTS(text=text, lang="en")
-  fp = io.BytesIO()
-  tts.write_to_fp(fp)
-  fp.seek(0)
-  return fp
+  try:
+    tts = gTTS(text=text, lang="en")
+    fp = io.BytesIO()
+    tts.write_to_fp(fp)
+    fp.seek(0)
+    return fp
+  except Exception:
+    return None
 
 
 # UI Layout
@@ -74,20 +89,20 @@ with col1:
 
   if audio_file:
     recognizer = sr.Recognizer()
-    with sr.AudioFile(audio_file) as source:
-      audio_data = recognizer.record(source)
-      try:
+    try:
+      with sr.AudioFile(audio_file) as source:
+        audio_data = recognizer.record(source)
         user_prompt = recognizer.recognize_google(audio_data)
         st.success(f"Recognized: **{user_prompt}**")
-      except Exception:
-        st.error("Could not transcribe audio locally.")
+    except Exception:
+      st.error("Could not transcribe audio locally or parse file.")
 
   if text_input:
     user_prompt = text_input
 
   if st.button("Submit / Process", type="primary"):
     if user_prompt:
-      # Step 1: Local NLP Processing
+      # Local NLP Processing
       intent = local_intent_analyzer(user_prompt)
       bot_response = ""
 
@@ -115,7 +130,7 @@ with col1:
             " was required."
         )
 
-      # Store Chat
+      # Store Chat Log
       st.session_state.chat_history.append({
           "user": user_prompt,
           "bot": bot_response,
@@ -124,7 +139,8 @@ with col1:
 
       # Generate Audio Response
       audio_stream = text_to_speech(bot_response)
-      st.audio(audio_stream, format="audio/mp3", autoplay=True)
+      if audio_stream:
+        st.audio(audio_stream, format="audio/mp3", autoplay=True)
 
 with col2:
   st.subheader("💬 OE HOE Logs & Chat History")
@@ -134,7 +150,7 @@ with col2:
     st.markdown("### 📊 Extracted Data via API (`gpt-6-luna`)")
     st.json(st.session_state.extracted_records)
 
-  # Show Chat History with Custom Chatbot Icon ("🤖")
+  # Show Chat History with Custom Avatars
   st.markdown("### 📜 Conversation Log")
   for item in reversed(st.session_state.chat_history):
     with st.chat_message("user", avatar="🧑‍💻"):
